@@ -1,0 +1,5 @@
+
+Singls diameter is: 7.500000
+doubls diameter is: 4.500000
+tripels diameter is: 4.500000
+number of alpha steps is: 5000.000000

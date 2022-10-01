@@ -1,0 +1,168 @@
+#!/bin/bash
+#PBS -l select=10:ncpus=128:mpiprocs=64
+#PBS -l walltime=014:00:00
+#PBS -q standard
+#PBS -j oe
+#PBS -N spin_flip
+#PBS -A NAWCC04704470
+#xPBS -A ARLAP96070PET
+
+#**************************************************************************
+# USER-SPECIFIED INPUTS
+#**************************************************************************
+
+# Set desired workdir destination
+# This script will create a job-specific sub-directory in this location
+# which will store all output data
+workpath=$WORKDIR/Spintronics
+
+# If you want to restart from a previous run,
+# change spin_restart=true and provide the dir path to the desired g.txt file
+# The default assumes that it is from the last completed run
+export spin_restart=false
+restart_path=$workpath/latest
+
+# Magnetic field for each ferromagnet in order
+export spin_H0="[ 0.1, 1.0, 0.1 ]" 
+# Minimum number of x-momenta to solve (= # of matrices to solve)
+export spin_min_nkx=800
+# Minimum number kx factor
+export spin_min_kx_factor=1.4
+# Max iterations to attempt if relative error doesn't decrease enough
+export spin_itmax=1
+# Convergence tolerance
+export spin_minerror=0.0001
+# Time
+export spin_time=
+# Coherence Length
+export spin_cl=50.0
+# Non-default relative temperature
+export spin_rel_temp=0.05
+# Dimensions of the domain in nondimensional length
+export spin_kfl1=10.0
+export spin_kfl2=50.0
+export spin_kfl3=10.0
+export spin_kfds=150.0
+export spin_kfw=10.0
+# Set the length of the region the initial state is applied
+# at the extremes of each superconducting region
+export spin_kfdx=0.0
+# Phase of the Josephson Junction with the S2 superconductor
+export spin_deg_vphi2=0.0
+export spin_deg_vphi1=0.0
+
+# Magnetic field exchange angles
+export spin_deg_theta="[ 0.0, 90.0, 90.0]"
+export spin_deg_phi="[ 0.0, 90.0, 0.0]"
+
+# Input the range of energies to output to W_.txt files
+export spin_Wtxt_range="[-0.04,0.04]"
+
+# Impurity scattering strength (H_B)
+export spin_scatt_str=0.0
+# Impurity concentrations for each section [S1,F1,F2,F3,S2]
+export spin_imp_conc="[0.0,0.0,0.0,0.0,0.0]"
+# Option for seed for random number generator used to
+# determine impurity distribution
+# 0: default const. seed (always repeatable)
+# 1: inputted const. seed (user-controlled repeatable)
+# 2: random seed (never repeatable)
+export spin_rand_opt=0
+# Seed for random number generator with option 1
+export spin_rand_seed=1234
+
+# Range of energies for DOS calculation
+export spin_DOS_range="[-6,6]"
+# Interval between energies for DOS
+export spin_DOS_inter=0.01
+# Three energy states for DOS output
+export spin_DOS_energy="[0.0,0.5,1.0]"
+# Three (y,z) locations for DOS output ordered [y1,y2,y3] & [z1,z2,z3]
+y1=$(python -c "print($spin_kfds/2.0)")
+y2=$(python -c "print($spin_kfds+$spin_kfl1/2.0)")
+y3=$(python -c "print($spin_kfds+$spin_kfl1+$spin_kfl2/2.0)")
+export spin_DOS_loc_y="[$y1,$y2,$y3]"
+
+z1=$(python -c "print($spin_kfw/2.0)")
+z2=$(python -c "print($spin_kfw/2.0)")
+z3=$(python -c "print($spin_kfw/2.0)")
+export spin_DOS_loc_z="[$z1,$z2,$z3]"
+
+
+#**************************************************************************
+# SYSTEM AND JOB SETUP
+#**************************************************************************
+cd $PBS_O_WORKDIR
+SRC=$PBS_O_WORKDIR
+exe=spin_flip_2d
+
+if [ $BC_HOST == 'narhwal' ]; then
+    cat $PBS_NODEFILE | sort | uniq -c
+fi
+
+# Call external script that loads system dependent setup 
+source sys_setup.sh
+
+echo Nodes = $NODES
+
+export NSLOTS=$(wc -l $PBS_NODEFILE | cut -f1 -d " ")
+echo Cores = $NSLOTS
+
+if [ $BC_HOST != 'narwhal' ]; then
+    ans=$(python3 ${SRC}/launch_params.py $NODES $NSLOTS | grep omp_threads)
+else
+    ans=$(python3 ${SRC}/launch_params.py $NODES $NSLOTS 256 | grep omp_threads)
+fi
+THREADS=$(echo $ans | grep omp_threads | cut -d : -f 2)
+
+if [$THREADS -eq 100 ]; then
+    # Job parameters and number of cores incompatible for 2D
+    source resub_2d.sh
+    qsub resub_2d.pbs
+    exit
+fi
+
+#let "RANKS_PER_NODE = $BC_STANDARD_NODE_CORES / $THREADS"
+#let "RANKS = $RANKS_PER_NODE * $NODES"
+let "RANKS_PER_NODE = $NSLOTS / $NODES"
+let "RANKS = $NSLOTS"
+export OMP_NUM_THREADS=$THREADS
+
+echo Threads = $THREADS
+echo Ranks per Node = $RANKS_PER_NODE
+echo Ranks = $RANKS
+echo
+
+# create a folder for this job
+job_num=$(echo $PBS_JOBID | cut -d '.' -f 1)
+job_dir=$workpath/$job_num
+mkdir -p $job_dir
+
+cp $PBS_O_WORKDIR/${exe} $job_dir/
+cp $PBS_O_WORKDIR/input.txt $job_dir/
+cp $PBS_O_WORKDIR/generate_report.py $job_dir/
+
+if [ $spin_restart == 'true' -o $spin_restart == 'True' -o $spin_restart == 'TRUE' ]; then
+    cp $restart_path/g.txt $job_dir
+fi
+
+# link to the most recent job
+rm -rf $workpath/latest
+ln -s $job_dir $workpath/latest
+
+cd $job_dir
+
+ulimit -c unlimited
+
+#**************************************************************************
+# RUN SPIN_FLIP_2D
+#**************************************************************************
+
+#if check_module PrgEnv-gnu; then
+if [ $BC_HOST == 'onyx' ] || [ $BC_HOST == 'narwhal' ]; then
+    aprun -d $THREADS -n $RANKS -N $RANKS_PER_NODE  ${job_dir}/${exe}
+else
+    mpiexec_mpt -n $RANKS ${job_dir}/${exe}
+fi
+
+python3 generate_report.py

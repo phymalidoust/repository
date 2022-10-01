@@ -1,0 +1,282 @@
+#!/bin/bash
+
+NODES=16
+SET_CORES_NODE=11
+
+#**************************************************************************
+# USER-SPECIFIED INPUTS
+#**************************************************************************
+
+# Magnetic field for each ferromagnet in order
+export spin_H0="[ 0.1, 1.0, 0.1 ]" 
+# Minimum number of x-momenta to solve (= # of matrices to solve)
+export spin_min_nkx=200
+# Minimum number kx factor
+export spin_min_kx_factor=1.0
+# Max iterations to attempt if relative error doesn't decrease enough
+export spin_itmax=4
+# Non-default relative temperature
+export spin_rel_temp=0.1
+# Dimensions of the domain in nondimensional length
+export spin_kfl1=10.0
+export spin_kfl2=50.0
+export spin_kfl3=10.0
+export spin_kfds=50.0
+export spin_kfw=10.0
+# Phase of the Josephson Junction with the S2 superconductor
+export spin_deg_vphi2=0.0
+
+# Impurity scattering strength (H_B)
+export spin_scatt_str=0.0
+# Impurity concentrations for each section [S1,F1,F2,F3,S2]
+export spin_imp_conc="[0.0,0.0,0.0,0.0,0.0]"
+# Option for seed for random number generator used to
+# determine impurity distribution
+# 0: default const. seed (always repeatable)
+# 1: inputted const. seed (user-controlled repeatable)
+# 2: random seed (never repeatable)
+export spin_rand_opt=2
+# Seed for random number generator with option 1
+export spin_rand_seed=1234
+
+# Range of energies for DOS calculation
+export spin_DOS_range="[-2,2]"
+# Interval between energies for DOS
+export spin_DOS_inter=0.1
+# Three energy states for DOS output
+export spin_DOS_energy="[0.0,0.5,1.0]"
+# Three (y,z) locations for DOS output ordered [y1,y2,y3] & [z1,z2,z3]
+y1=$(python -c "print($spin_kfds/2.0)")
+y2=$(python -c "print($spin_kfds+$spin_kfl1/2.0)")
+y3=$(python -c "print($spin_kfds+$spin_kfl1+$spin_kfl2/2.0)")
+export spin_DOS_loc_y="[$y1,$y2,$y3]"
+
+z1=$(python -c "print($spin_kfw/2.0)")
+z2=$(python -c "print($spin_kfw/2.0)")
+z3=$(python -c "print($spin_kfw/2.0)")
+export spin_DOS_loc_z="[$z1,$z2,$z3]"
+
+
+#python3 launch_params.py $NODES $SET_CORES_NODE
+ans=$(python3 launch_params.py $NODES $SET_CORES_NODE | grep omp_threads)
+THREADS=$(echo $ans | grep omp_threads | cut -d : -f 2)
+
+if [ $THREADS == 100 ]; then
+    echo
+    echo The number of nodes and cores you supplied will not work
+    echo for the given 2D problem conditions
+    echo Trying to find a configuration that works
+    echo
+    for TRY_NODES in {1..50}; do
+	for SET_NODE_CORES in 4 11 22; do
+	    ans=$(python3 launch_params.py $TRY_NODES $SET_NODE_CORES | grep omp_threads)
+	    THREADS=$(echo $ans | grep omp_threads | cut -d : -f 2)
+	    if [ $THREADS != 100 ]; then
+		if [ -e new_test.pbs ]; then
+		    rm new_test.pbs
+		fi
+		cat >> new_test.pbs <<EOF 
+#!/bin/bash
+#PBS -l select=${TRY_NODES}:ncpus=${BC_STANDARD_NODE_CORES}:mpiprocs=${SET_NODE_CORES}
+#PBS -l walltime=0:10:00
+#PBS -q debug
+#PBS -j oe
+#PBS -N spin_flip
+#PBS -A NAWCC04704470
+
+#**************************************************************************
+# USER-SPECIFIED INPUTS
+#**************************************************************************
+
+# Set desired workdir destination
+# This script will create a job-specific sub-directory in this location
+# which will store all output data
+workpath=$WORKDIR/Spintronics
+
+# Magnetic field for each ferromagnet in order
+export spin_H0="${spin_H0}"
+# Minimum number of x-momenta to solve (= # of matrices to solve)
+export spin_min_nkx=0
+# Minimum number kx factor
+export spin_min_kx_factor=${spin_min_kx_factor}
+# Max iterations to attempt if relative error doesn't decrease enough
+export spin_itmax=${spin_itmax}
+# Non-default relative temperature
+export spin_rel_temp=${spin_rel_temp}
+# Dimensions of the domain in nondimensional length
+export spin_kfl1=${spin_kfl1}
+export spin_kfl2=${spin_kfl2}
+export spin_kfl3=${spin_kfl3}
+export spin_kfds=${spin_kfds}
+export spin_kfw=${spin_kfw}
+# Phase of the Josephson Junction with the S2 superconductor
+export spin_deg_vphi2=${spin_deg_vphi2}
+
+# Impurity scattering strength (H_B)
+export spin_scatt_str=${spin_scatt_str}
+# Impurity concentrations for each section [S1,F1,F2,F3,S2]
+export spin_imp_conc=${spin_imp_conc}
+# Option for seed for random number generator used to
+# determine impurity distribution
+# 0: default const. seed (always repeatable)
+# 1: inputted const. seed (user-controlled repeatable)
+# 2: random seed (never repeatable)
+export spin_rand_opt=${spin_rand_opt}
+# Seed for random number generator with option 1
+export spin_rand_seed=${spin_rand_seed}
+
+# Range of energies for DOS calculation
+export spin_DOS_range="${spin_DOS_range}"
+# Interval between energies for DOS
+export spin_DOS_inter=${spin_DOS_inter}
+# Three energy states for DOS output
+export spin_DOS_energy="${spin_DOS_energy}"
+# Three (y,z) locations for DOS output ordered [y1,y2,y3] & [z1,z2,z3]
+y1=\$(python -c "print(\$spin_kfds/2.0)")
+y2=\$(python -c "print(\$spin_kfds+\$spin_kfl1/2.0)")
+y3=\$(python -c "print(\$spin_kfds+\$spin_kfl1+\$spin_kfl2/2.0)")
+export spin_DOS_loc_y="[\$y1,\$y2,\$y3]"
+
+z1=\$(python -c "print(\$spin_kfw/2.0)")
+z2=\$(python -c "print(\$spin_kfw/2.0)")
+z3=\$(python -c "print(\$spin_kfw/2.0)")
+export spin_DOS_loc_z="[\$z1,\$z2,\$z3]"
+
+
+#**************************************************************************
+# SYSTEM AND JOB SETUP
+#**************************************************************************
+
+# function for checking if a module is available
+check_module(){
+    result=\$(module show $1 2>&1)
+    if [[ $result == *"Unable to locate a modulefile for '$1'"* ]]; then
+	return 1    # false
+    else
+	return 0    # true
+    fi
+}
+
+cd $PBS_O_WORKDIR
+#SRC=\$HOME/1035-0069/spin_flip
+SRC=\$PBS_O_WORKDIR
+exe=spin_flip_2d
+
+if check_module PrgEnv-cray; then
+    # we're on a cray system
+    module unload PrgEnv-cray PrgEnv-gnu PrgEnv-pgi PrgEnv-intel
+    module load PrgEnv-gnu
+    
+    module load cray-libsci
+    module load cray-hdf5
+    module load cseinit
+    module load cse/anaconda3
+
+    #ensure latest version of gcc compiler loaded
+    module unload gcc/4.9.3
+    module load gcc/7.2.0
+
+    NODES=\$(aprun -q -B hostname | sort | uniq | wc -l)
+else
+    # We are on an SGI system
+    module load cseinit
+    module load cse/anaconda3
+    module unload compiler/intel gcc
+    module unload cse/openmpi mpt
+    module load gcc
+    module load mpt
+    module load costinit
+    module load hdf5/gnu
+    module list
+    if [ \$BC_HOST == "mustang" ]; then
+	MKLROOT=/p/app/intel/parallel_studio_xe_2018_update3/compilers_and_libraries_2018.3.222/linux/mkl/lib/intel64
+	INTELROOT=/p/app/intel/parallel_studio_xe_2018_update3/compilers_and_libraries_2018.3.222/linux/compiler/lib/intel64
+    elif [ \$BC_HOST == "gaffney" ]; then
+	MKLROOT=/p/app/intel/parallel_studio_xe_2019_update4/compilers_and_libraries/linux/mkl/lib/intel64
+	INTELROOT=/p/app/intel/parallel_studio_xe_2019_update4/compilers_and_libraries/linux/compiler/lib/intel64
+    fi
+    export LD_LIBRARY_PATH=\$LD_LIBRARY_PATH:\${INTELROOT}
+    export LD_LIBRARY_PATH=\$LD_LIBRARY_PATH:\${MKLROOT}
+    export PATH=\$PATH:\${INTELROOT}
+    export PATH=\$PATH:\${MKLROOT}
+
+    NODES=\$(cat $PBS_NODEFILE | cut -d " " -f 1 | sort | uniq | wc -l | cut -d " " -f 1)
+fi
+
+echo Nodes = \$NODES
+
+export NSLOTS=\$(wc -l $PBS_NODEFILE | cut -f1 -d " ")
+echo Cores = \$NSLOTS
+
+ans=\$(python3 \${SRC}/launch_params.py \$NODES \$BC_STANDARD_NODE_CORES | grep omp_threads)
+THREADS=\$(echo $ans | grep omp_threads | cut -d : -f 2)
+
+if [\$THREADS -eq 100 ]; then
+    echo
+    echo "The given input parameters cannot be used in 2D" 
+    echo "for the specified number of cores and nodes"
+    echo
+    echo "This is due to Kx_factor becoming > 3.0 to create a matrix A that can"
+    echo "be perfectly tesselated by n_proc_rows and n_proc_cols"
+    echo
+    echo "Please review your PBS script and try a different number of cores and/or nodes"
+    echo
+    echo "Please note that 2D cases work better when the number of cores/node approaches"
+    echo "the maximum allowable cores/node for a particular system"
+fi
+
+let "RANKS_PER_NODE = \$BC_STANDARD_NODE_CORES / \$THREADS"
+let "RANKS = \$RANKS_PER_NODE * \$NODES"
+export OMP_NUM_THREADS=\$THREADS
+
+echo Threads = \$THREADS
+echo Ranks per Node = \$RANKS_PER_NODE
+echo Ranks = \$RANKS
+echo
+
+# create a folder for this job
+job_num=\$(echo $PBS_JOBID | cut -d '.' -f 1)
+job_dir=\$workpath/\$job_num
+mkdir -p \$job_dir
+
+cp \$PBS_O_WORKDIR/\${exe} \$job_dir/
+cp \$PBS_O_WORKDIR/input.txt \$job_dir/
+cp \$PBS_O_WORKDIR/generate_report.py \$job_dir/
+
+# link to the most recent job
+rm -rf \$WORKDIR/Spintronics/latest
+ln -s \$job_dir $WORKDIR/Spintronics/latest
+
+cd $job_dir
+
+ulimit -c unlimited
+
+#**************************************************************************
+# RUN SPIN_FLIP_2D
+#**************************************************************************
+
+if check_module PrgEnv-gnu; then
+   aprun -d \$THREADS -n \$RANKS -N \$RANKS_PER_NODE  \${job_dir}/\${exe}
+else
+   mpiexec_mpt -n \$RANKS \${job_dir}/\${exe}
+fi
+
+python3 generate_report.py
+
+
+EOF
+		echo
+		echo Creating new PBS script with $TRY_NODES nodes and $SET_NODE_CORES cores per node
+		FINISHED=true
+		break
+	    else 
+		echo
+		echo Cannot find a number of cores that works for this 2D problem
+		echo
+	    fi
+	done   # Cores
+	if [ $FINISHED == "true" ]; then
+	    break
+	fi
+    done       # Nodes
+fi

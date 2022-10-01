@@ -1,0 +1,13 @@
+# Linking flags and fortran compiler
+MPI=sgimpt
+INTERFACE=lp64
+
+BLAS = -lmkl
+LAPACK = -lmkl
+SCALAPACK = -L${MKLROOT}/lib/intel64 		\
+			-lmkl_scalapack_${INTERFACE} 	\
+			-lmkl_intel_${INTERFACE} 		\
+			-lmkl_sequential 				\
+			-lmkl_core 						\
+			-lmkl_blacs_${MPI}_${INTERFACE} 
+MPIF90 = mpif90

@@ -1,0 +1,9 @@
+# Linking flags and fortran compiler
+
+BLAS = 
+LAPACK = 
+SCALAPACK = 
+MPIF90 = ftn
+
+HDF5_LIBS = -L /opt/cray/pe/hdf5/1.12.0.3/GNU/9.1/lib -l hdf5_fortran -dynamic
+HDF5_INC = /opt/cray/pe/hdf5/1.12.0.3/GNU/9.1/include -dynamic

@@ -1,0 +1,18 @@
+# Linking flags and fortran compiler
+MPI=sgimpt
+
+INTERFACE=lp64
+MKLROOT=/p/app/intel/parallel_studio_xe_2018_update3/compilers_and_libraries_2018.3.222/linux/mkl
+
+BLAS = -lmkl
+LAPACK = -lmkl
+SCALAPACK = -L${MKLROOT}/lib/intel64/      \
+                        -lmkl_intel_${INTERFACE}                \
+                        -lmkl_sequential             \
+                        -lmkl_core                   \
+                        -lmkl_scalapack_${INTERFACE}    \
+                        -lmkl_blacs_${MPI}_${INTERFACE}
+ 
+MPIF90 = mpif90
+HDF5_INC = /p/app/COST/hdf5/1.8.15/gnu/include
+HDF5_LIBS = -L /p/app/COST/hdf5/1.8.15/gnu/lib -lhdf5_fortran

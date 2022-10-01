@@ -1,0 +1,38 @@
+ - In $HOME, type:
+
+nano .bashrc
+
+ - Add the following lines to the bottom of that file:
+
+# User specific aliases and functions
+module use $HOME/modules
+
+ - Save and exit .bashrc
+ - back in $HOME, type:
+
+mkdir modules
+
+ - Then move into the new directory:
+
+cd modules
+
+ - Make another new directory inside of modules/:
+
+mkdir gcc-7.3.0
+
+ - Move into that directory now
+
+cd gcc-7.3.0
+
+ - Copy the GCC module file from my cwfs with the following command
+
+cp /p/cwfs/scstarr/7.3.0 ./
+
+ - GCC 7.3.0 will now be a loadable module in your Centennial environment
+
+ - To switch to the new compiler option, do the following upon connecting to 
+Centennial:
+
+module swap compiler/intel gcc-7.3.0/7.3.0
+
+ - You now should be able to compile spin_flip_2d on Centennial
