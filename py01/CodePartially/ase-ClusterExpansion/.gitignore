@@ -1,0 +1,23 @@
+*.pyc
+doc/build/
+/dist
+MANIFEST
+.DS_Store
+*/.DS_Store
+*.traj
+/build
+/ase.egg-info
+/ase/db/static/jsmol
+
+#editor backup files
+*.py~
+*.rst~
+
+# Ignore PyCharm settings
+.idea/
+
+# Vim swap files:
+.*.sw?
+
+# Translation template
+ase/gui/po/ag.pot
